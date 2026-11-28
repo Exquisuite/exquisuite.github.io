@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "어형 · 헝가리어 분석기",
-  "short_name": "어형",
+  "name": "헝가리어 번역기",
+  "short_name": "헝가리어 번역기",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",

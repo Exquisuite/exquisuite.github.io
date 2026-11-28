@@ -1,4 +1,4 @@
-const cacheName = "eohyeong-iphone-511a7f15a132992b";
+const cacheName = "eohyeong-iphone-12e9598b2e4aa561";
 const shell = ["app.js","assignment.js","engine.js","index.html","local-context-worker.js","local-context.js","music-player.css","music-player.js","paradigms.json","photo-key.js","photo-match.js","photo.js","reference.js","report.js","study.js","style.css","typing-viewport.js","workspace.css","brand/maplestory-bold.ttf","brand/pretendard-license.txt","brand/pretendard-thin.woff2","brand/workspace-forest.png","brand/yomi.png","iphone.webmanifest","iphone-install.js","iphone-icon-180.png","iphone-icon-192.png","iphone-icon-512.png","iphone-music-yomi.gif"];
 const scope = new URL(self.registration.scope);
 self.addEventListener("install", event => {
