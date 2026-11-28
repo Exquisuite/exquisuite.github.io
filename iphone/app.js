@@ -16,8 +16,51 @@ for(const [t,sub,lang] of items){let b=el('button','item',t);b.append(el('small'
 async function run(save=true){const text=$('input').value.trim(),lang=document.getElementById('direction').value;if(activeRun&&activeRun.text===text&&activeRun.lang===lang)return;const id=++generation;if(!text){activeRun=null;$('run').disabled=false;$('status').textContent='원문을 입력해 주세요.';$('results').hidden=true;return}activeRun={id,text,lang};
 $('run').disabled=true;$('status').textContent='어휘와 어형을 분석하고 있습니다…';$('results').hidden=true;$('localPanel').hidden=true;
 try{const reverse=lang==='ko';const r=reverse?{natural:await window.translateKorean(text),literal:'',words:[]}:await window.analyzeHU(text);if(id!==generation)return;if(reverse&&!r.natural)throw Error();$('literal').textContent=r.literal;const meanings=r.vocabularyMeanings;const showMeanings=meanings?.length>1;$('naturalLabel').textContent=reverse?'헝가리어 번역':showMeanings?'한국어 뜻':'의역';$('natural').textContent=showMeanings?meanings.join('\n'):r.natural;$('words').replaceChildren();$('total').textContent=r.words.length;
-r.words.forEach((w,i)=>{let card=el('article','word'),top=el('div','wordtop');top.append(el('small','',String(i+1).padStart(2,'0')),el('span','tag',w.pos));card.append(top,el('h3','',w.word),el('p','',w.meaning));let details=el('div','details');const otherMeanings=Array.isArray(w.otherMeanings)?w.otherMeanings.filter(m=>typeof m==='string'&&m.trim()):[];if(otherMeanings.length)card.append(el('div','alternate-senses','다른 뜻 · '+otherMeanings.join(' / ')));for(const line of ['기본형 · '+w.lemma,w.parts,...(w.features||[]),...Object.entries(w.fields||{}).map(([k,v])=>k+" · "+v),w.gloss && w.gloss!==w.meaning?"문장 속 풀이 · "+w.gloss:"",typeof w.senseReason==='string'&&w.senseReason.trim()?'문맥 · '+w.senseReason:''].filter(Boolean))details.append(el('div','',line));card.append(details);$('words').append(card)});$('results').hidden=false;$('status').textContent='';if(!reverse)setupLocalContext(text,r.words,id,r.grammarNotes);if(save){historyList=[{text,lang},...historyList.filter(x=>typeof x==='string'?x!==text:x.text!==text||x.lang!==lang)].slice(0,25);try{localStorage.setItem('magyar.history',JSON.stringify(historyList))}catch{}}}
+r.words.forEach((word,index)=>$('words').append(wordCard(word,index)));$('results').hidden=false;$('status').textContent='';if(!reverse)setupLocalContext(text,r.words,id,r.grammarNotes);if(save){historyList=[{text,lang},...historyList.filter(x=>typeof x==='string'?x!==text:x.text!==text||x.lang!==lang)].slice(0,25);try{localStorage.setItem('magyar.history',JSON.stringify(historyList))}catch{}}}
 catch{if(id===generation)$('status').textContent='분석을 완료하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.'}finally{if(id===generation){activeRun=null;$('run').disabled=false}}}
+function wordCard(word,index){
+  const card=el('article','word'),top=el('div','wordtop');
+  top.append(el('small','',String(index+1).padStart(2,'0')),el('span','tag',word.pos));
+  const ambiguous=word.senses?.length>1 && word.unresolvedSenses?.length>1;
+  card.append(top,el('h3','',word.word),el('p','',ambiguous?'가능한 뜻 '+word.senses.length+'개':word.meaning));
+  if(word.senses?.length>1){
+    const meanings=el('section','alternate-senses');
+    const list=el('ol','word-senses');
+    for(const meaning of word.senses){
+      const item=el('li','',meaning);
+      if(!ambiguous && meaning===word.meaning) item.append(el('span','sense-selected',' · 문맥상 뜻'));
+      list.append(item);
+    }
+    meanings.append(el('h4','', '한국어 뜻'),list);
+    card.append(meanings);
+  }
+  if(word.dictionaryDefinitions?.length && word.senses?.length<2){
+    const definitions=el('details','alternate-senses');
+    const list=el('ul','word-senses');
+    for(const definition of word.dictionaryDefinitions)list.append(el('li','',definition));
+    definitions.append(el('summary','','Wiktionary 영어 풀이'),list);
+    card.append(definitions);
+  }
+  const details=el('div','details');
+  details.append(el('div','','기본형 · '+word.lemma));
+  if(word.morphemes?.length){
+    const list=el('dl','morphemes');
+    for(const {kind,text,reading} of word.morphemes){
+      const row=el('div','');
+      row.append(el('dt','',kind+' · '+text),el('dd','',reading));
+      list.append(row);
+    }
+    details.append(el('h4','','형태소 분석'),list);
+  }
+  if(!word.morphemes?.length || word.morphemes.some(part=>part.kind==='미분리')){
+    if(word.parts)details.append(el('div','','기본형과 표면형 · '+word.parts.replaceAll(' + -',' / -')));
+  }
+  for(const line of [...(word.features||[]),...Object.entries(word.fields||{}).map(([key,value])=>key+' · '+value),
+    word.gloss && word.gloss!==word.meaning?'문장 속 풀이 · '+word.gloss:'',
+    word.senseReason?'문맥 · '+word.senseReason:''].filter(Boolean))details.append(el('div','',line));
+  card.append(details);
+  return card;
+}
 let localBusy=false;
 function setupLocalContext(text,words,id,grammarNotes){
   const panel=$('localPanel'),button=$('localRun');

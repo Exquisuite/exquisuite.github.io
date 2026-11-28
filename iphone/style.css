@@ -42,3 +42,12 @@ body { padding-bottom: var(--typing-space, 0px); }
 @media (any-pointer: coarse) {
   textarea { max-height: 28vh; max-height: 28dvh; overflow-y: auto; }
 }
+
+.word h4 { margin: .55rem 0 .25rem; font-size: .9rem; }
+.word-senses { margin: .25rem 0; padding-inline-start: 1.5rem; }
+.word-senses li + li { margin-top: .18rem; }
+.sense-selected, .morphemes dt { font-weight: 700; }
+.morphemes { margin: .35rem 0 .55rem; }
+.morphemes > div { padding: .28rem .45rem; border-inline-start: 2px solid #d9c8e8; margin-bottom: .25rem; }
+.morphemes dd { margin-inline-start: 0; overflow-wrap: anywhere; }
+.morphemes dd:empty { display: none; }
