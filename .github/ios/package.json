@@ -1,0 +1,23 @@
+{
+  "name": "eohyeong-ios",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare:ios": "node scripts/prepare-ios.mjs",
+    "build:simulator": "xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build",
+    "codex": "node scripts/start-codex.mjs"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.3",
+    "@capacitor/ios": "8.6.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.3",
+    "@eslint/mcp": "0.3.17",
+    "eslint": "10.16.0"
+  }
+}

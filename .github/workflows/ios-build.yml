@@ -1,0 +1,40 @@
+name: iOS simulator build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['iphone/**', '.github/workflows/ios-build.yml', '.github/ios/**']
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare Xcode project
+        working-directory: .github/ios
+        run: |
+          npm ci
+          cp -R ../../iphone web
+          npx cap add ios --packagemanager SPM
+          cp AppIcon.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+          /usr/libexec/PlistBuddy -c 'Add :NSCameraUsageDescription string 헝가리어 교재 사진을 촬영해 분석할 때 카메라를 사용합니다.' ios/App/App/Info.plist
+      - name: Compile simulator app
+        working-directory: .github/ios
+        run: npm run build:simulator
+      - name: Package simulator app
+        working-directory: .github/ios
+        run: ditto -c -k --keepParent build/Build/Products/Debug-iphonesimulator/App.app Eohyeong-iOS-Simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Eohyeong-iOS-Simulator
+          path: .github/ios/Eohyeong-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 7
