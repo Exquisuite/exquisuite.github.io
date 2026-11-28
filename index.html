@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Exquisuite · 어형</title>
-<meta name="description" content="어형 헝가리어 분석기의 Android 앱을 다운로드하거나 웹에서 사용하세요.">
+<meta name="description" content="어형 Android 앱을 다운로드하고, iPhone에서는 홈 화면용 어형을 사용하세요.">
 <style>
 :root{color-scheme:light;--ink:#351943;--muted:#624d71;--accent:#702dab;--edge:#e2c9ef}
 *{box-sizing:border-box}
@@ -22,7 +22,12 @@ h2{margin:0 0 .35rem;line-height:1.2;font-size:1.5rem}
 .actions{display:flex;gap:.7rem;flex-wrap:wrap}
 .button{display:inline-flex;align-items:center;justify-content:center;min-height:2.8rem;padding:.55rem 1rem;font-weight:700;border-radius:.8rem;text-decoration:none;border:1px solid var(--edge)}
 .primary{background:var(--accent);color:white;border-color:var(--accent)}
-a:focus-visible{outline:3px solid #8d4ec6;outline-offset:4px}
+.platform-tabs{display:flex;gap:.35rem;padding:.3rem;background:#f1e6fa;border-radius:.9rem;margin-bottom:1.15rem}
+.platform-tabs button{flex:1;min-height:2.5rem;border:0;border-radius:.65rem;background:transparent;color:var(--muted);font:inherit;font-weight:700;cursor:pointer}
+.platform-tabs button[aria-selected="true"]{color:var(--ink);background:#fffbff;box-shadow:0 1px 4px #65268a25}
+.platform-panel[hidden]{display:none}
+.install-steps{margin:.9rem 0 0;color:var(--muted);font-size:.9rem}
+a:focus-visible,button:focus-visible{outline:3px solid #8d4ec6;outline-offset:4px}
 footer{border-top:1px solid var(--edge);padding:1rem 0;color:var(--muted);font-size:.875rem}
 @media(max-width:650px){section{grid-template-columns:1fr}}
 </style>
@@ -33,6 +38,11 @@ footer{border-top:1px solid var(--edge);padding:1rem 0;color:var(--muted);font-s
 <div><h1 id="app">어형<span aria-hidden="true">.</span></h1>
 <p>헝가리어 문장을 한국어로 옮기고, 단어의 뜻과 어형 변화를 살펴볼 수 있는 학습 도구입니다.</p></div>
 <div class="card">
+<div class="platform-tabs" role="tablist" aria-label="사용할 기기">
+<button id="android-tab" type="button" role="tab" aria-controls="android-panel" aria-selected="true">Android</button>
+<button id="iphone-tab" type="button" role="tab" aria-controls="iphone-panel" aria-selected="false" tabindex="-1">iPhone</button>
+</div>
+<div class="platform-panel" id="android-panel" role="tabpanel" aria-labelledby="android-tab">
 <h2>헝가리어 분석기</h2>
 <p>Android 1.0.10 · Android 10 이상 · 124 MB</p>
 <div class="actions">
@@ -40,8 +50,40 @@ footer{border-top:1px solid var(--edge);padding:1rem 0;color:var(--muted);font-s
 <a class="button" href="https://magyar-korean-reading-lab.anhojun1020.chatgpt.site">웹에서 열기</a>
 </div>
 </div>
+<div class="platform-panel" id="iphone-panel" role="tabpanel" aria-labelledby="iphone-tab" hidden>
+<h2>iPhone용 어형</h2>
+<p>Safari에서 열고 홈 화면에 추가할 수 있는 웹 앱입니다.</p>
+<div class="actions"><a class="button primary" href="./iphone/">iPhone용 앱 열기</a></div>
+<ol class="install-steps">
+<li>Safari에서 앱을 엽니다.</li>
+<li>공유 메뉴에서 <strong>홈 화면에 추가</strong>를 선택합니다.</li>
+</ol>
+</div>
+</div>
 </section>
 </main>
 <footer>Exquisuite</footer>
 </div>
+<script>
+const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+function selectTab(active) {
+  for (const tab of tabs) {
+    const selected = tab === active;
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
+  }
+}
+for (const tab of tabs) {
+  tab.addEventListener('click', () => selectTab(tab));
+  tab.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const active = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs.at(-1) : tabs.find(candidate => candidate !== tab);
+    selectTab(active);
+    active.focus();
+  });
+}
+if (/iPhone|iPad|iPod/.test(navigator.userAgent)) selectTab(tabs[1]);
+</script>
 </html>

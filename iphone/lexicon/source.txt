@@ -1,0 +1,9 @@
+﻿Hungarian headword, part of speech, degree forms and English glosses.
+Source: English Wiktionary contributors, via Wiktextract / Kaikki.org.
+https://kaikki.org/dictionary/Hungarian/index.html
+https://en.wiktionary.org/wiki/Wiktionary:Copyrights
+License for the extracted lexical data and this adaptation: CC BY-SA 4.0
+https://creativecommons.org/licenses/by-sa/4.0/
+Adaptation: selected classes and senses, indexed headwords and comparison forms.
+Consult the Wiktionary entry history for contributors to an individual headword.
+Usage example sentences are selected from English Wiktionary contributors via the same Kaikki.org Hungarian extract, under CC BY-SA 4.0. Selection and indexing by part of speech are adaptations.
