@@ -54,7 +54,7 @@
   background: #e8caf4;
   box-shadow: 0 5px #c49bd6, 0 0 0 4px #e7c8f5;
 }
-.music-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.music-cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .music-cover::after { position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 4px #fdf1ffaa; content: ""; pointer-events: none; }
 
 .music-console { min-width: 0; position: relative; }

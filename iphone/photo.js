@@ -1,11 +1,9 @@
 import {lookupPhoto} from './photo-key.js';
-﻿const fileInput=document.getElementById('photo');
+const fileInput=document.getElementById('photo');
 const preview=document.getElementById('photoPreview');
 const button=document.getElementById('photoRun');
 const status=document.getElementById('photoStatus');
-const answer=document.getElementById('photoAnswer');
-const text=document.getElementById('photoText');
-let photo='',version=0,model,busy=false;
+let photo='',version=0,busy=false;
 const cameraInput=document.getElementById("photoCamera");
 const picker=document.getElementById("photoPick");
 const dropZone=document.getElementById("photoDrop");
@@ -37,7 +35,7 @@ dropZone.addEventListener("drop",event=>{
 async function selectPhoto(file){
   if(busy)return;
   const revision=++version;
-  photo='';document.getElementById('keyAnswer').hidden=true;document.getElementById('photoAI').disabled=true;button.disabled=true;preview.hidden=true;answer.hidden=true;status.textContent='';
+  photo='';document.getElementById('keyAnswer').hidden=true;document.getElementById('photoAI').disabled=true;button.disabled=true;preview.hidden=true;status.textContent='';
   if(!file.type.startsWith('image/')&&!(file.type===''&&/\.(?:jpe?g|png)$/i.test(file.name))){
     status.textContent='JPG 또는 PNG 사진을 선택해 주세요.';return;
   }
@@ -52,35 +50,22 @@ async function selectPhoto(file){
   }catch{if(revision===version)status.textContent='사진을 읽지 못했습니다. 파일을 다시 선택해 주세요.'}
   finally{URL.revokeObjectURL(url)}
 };
-async function loadModel(){
-  if(model)return model;
-  const adapter=await navigator.gpu?.requestAdapter();
-  if(!adapter)throw Error('이 기기에서 WebGPU를 사용할 수 없습니다. 하드웨어 가속을 지원하는 Chrome 또는 Edge에서 열어 주세요.');
-  const type=adapter.features.has('shader-f16')?'f16':'f32';
-  status.textContent='시각 언어 모델을 준비하고 있습니다…';
-  const {CreateMLCEngine}=await import('./vendor/webllm.js');
-  model=await CreateMLCEngine('Phi-3.5-vision-instruct-q4'+type+'_1-MLC',{initProgressCallback:progress=>{status.textContent='모델 준비 · '+progress.text}});
-  return model;
-}
-async function analyzePhoto(useKey){
+button.onclick=async()=>{
   if(!photo||busy)return;
-  busy=true;button.disabled=true;fileInput.disabled=true;cameraInput.disabled=true;picker.disabled=true;answer.hidden=true;
+  busy=true;
+  const ai=document.getElementById("photoAI");
+  button.disabled=fileInput.disabled=cameraInput.disabled=picker.disabled=ai.disabled=true;
+  document.getElementById("keyAnswer").hidden=true;
   try{
-    document.getElementById("photoAI").disabled=true;
-    if(useKey){document.getElementById("keyAnswer").hidden=true;await lookupPhoto(photo);return;}
-    const engine=await loadModel();
-    status.textContent='사진에서 문제를 읽고 답안을 작성하고 있습니다…';
-    const result=await engine.chat.completions.create({messages:[{role:'user',content:[
-      {type:'image_url',image_url:{url:photo}},
-      {type:'text',text:'This is a Hungarian language textbook page. Answer in Korean. First transcribe each legible Hungarian sentence and give its Korean meaning. Then solve each visible exercise in order, preserving its number. For each give the answer in the language requested by the exercise (Hungarian by default) and a short Korean explanation. Use the choices and picture clues. Label open-ended answers as examples. If text or context is unreadable, name the missing part instead of guessing.'}
-    ]}],temperature:.1,max_tokens:1600});
-    const message=result.choices[0]?.message?.content?.trim();
-    if(!message)throw Error('답안을 생성하지 못했습니다.');
-    text.textContent=message;answer.hidden=false;
-    status.textContent=result.choices[0].finish_reason==='length'?'답변 길이 한도에 도달했습니다. 남은 문제를 잘라 다시 올려 주세요.':'분석을 마쳤습니다. 예상 답안을 원문과 대조해 주세요.';
-  }catch(err){status.textContent='분석을 완료하지 못했습니다. '+(err.message||'네트워크와 GPU 메모리를 확인해 주세요.')}
-  finally{busy=false;fileInput.disabled=false;cameraInput.disabled=false;picker.disabled=false;button.disabled=!photo;document.getElementById('photoAI').disabled=!photo}
+    await lookupPhoto(photo);
+  }catch(error){
+    status.textContent="답지를 찾지 못했습니다. "+(error.message||"사진을 확인해 주세요.");
+  }finally{
+    busy=false;
+    fileInput.disabled=cameraInput.disabled=picker.disabled=false;
+    button.disabled=ai.disabled=!photo;
+  }
 };
-
-button.onclick=()=>analyzePhoto(true);
-document.getElementById('photoAI').onclick=()=>analyzePhoto(false);
+document.getElementById("photoAI").onclick=()=>{
+  if(photo&&!busy)window.aiHandoff.analyzePhoto();
+};

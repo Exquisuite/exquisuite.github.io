@@ -50,7 +50,7 @@
     const features=[rec.d||rec.c||rec.s?degree:"기본형"];
     const other=[...new Set(entries.filter(e=>e.p!==rec.p).map(e=>wordClasses[e.p]))];
     if(other.length)features.push("다른 품사 가능: "+other.join(", "));
-    return {word,lemma,pos,meaning,definition:rec.g,degree:rec.d,fields,features,
+    return {word,lemma,pos,meaning,definition:rec.g,degree:rec.d,fields,features,dictionaryDefinitions:[...new Set(entries.map(e=>e.g && {pos:wordClasses[e.p], meaning:e.g}).filter(Boolean).map(e=>e.pos+" · "+e.meaning))],
       parts:word.toLowerCase()===lemma?word:lemma+" → "+word,gloss:koreanDegrees[word.toLowerCase()]};
   }
   const labels = {
@@ -84,7 +84,7 @@
     return (await cache.get(key)).get(form)||[];
   }
   const examples = new Map();
-  function sample(text,literal,natural) {examples.set(text.toLowerCase().replace(/[.!?]+$/,""),{literal,natural});}
+  function sample(text,literal,natural,verified=false) {examples.set(text.toLowerCase().replace(/[.!?]+$/,""),{literal,natural,verified});}
   sample("A fiú jól olvas","그 / 소년이 / 잘 / 읽는다","소년이 글을 잘 읽는다.");
   sample("Ez egy jó könyv","이것은 / 한 권의 / 좋은 / 책이다","이것은 좋은 책이다.");
   sample("Tegnap egy könyvet olvastam a kertben","어제 / 한 / 책을 / 나는 읽었다 / 그 / 정원에서","어제 정원에서 책 한 권을 읽었다.");
@@ -92,6 +92,9 @@
   sample("A házamban lakom","그 / 내 집 안에서 / 나는 산다","나는 내 집에서 산다.");
   sample("A házamban vagyok","그 / 내 집 안에 / 나는 있다","나는 내 집에 있다.");
   sample("Látom a kutyát","나는 본다 / 그 / 개를","나는 그 개를 본다.");
+  sample("Rejtvényt fejtek","퍼즐을 / 나 풀다","나는 퍼즐을 풀다",true);
+  add("명사","rejtvény=퍼즐|keresztrejtvény=십자말풀이|tej=우유|tehén=암소");
+  add("동사","fejt=풀다|fej=젖을 짜다|rejt=숨기다");
   const manual={
     vagyok:["van","동사","직설법|현재|1인칭 단수","van → vagyok","나는 있다"],
     látom:["lát","동사","직설법|현재|1인칭 단수|한정 활용","lát + -om","나는 본다"],
@@ -207,6 +210,14 @@
       return {word,lemma:form,...known,features:[feature],parts:form};
     }
     let rows=await lookup(form);
+    if (!rows.length) {
+      for (const [lemma,[prefix,base]] of Object.entries(prefixedVerbs)) {
+        if (!form.startsWith(prefix)) continue;
+        const baseForm=form.slice(prefix.length);
+        const matches=(await lookup(baseForm)).filter(row=>row.lemma===base && row.tags[0]==="V");
+        if(matches.length){rows=matches.map(row=>({...row,lemma}));break;}
+      }
+    }
     let suffix="";
     if (!rows.length) {
       for (const [ending,tag] of Object.entries(cases)) {
@@ -243,6 +254,129 @@
     if(alternatives.length)features.push("다른 분석: "+[...new Set(alternatives)].join(" / "));
     return {word,lemma,pos:posName[main?.tags[0]]||known?.pos||"미확인",meaning,features,parts:suffix?segment(form.slice(0,-suffix.length),lemma)+" + -"+suffix:segment(form,lemma),tags:main?.tags||[],analyses:rows.map(row=>({lemma:row.lemma,tags:row.tags}))};
   }
+  // Only registered combinations inherit the base verb's paradigm.
+  const preverbs = {
+    ki: "안에서 밖으로. kimos에서는 씻어서 때나 얼룩을 없애거나 속을 씻어 냄",
+    el: "기준점에서 멀어짐. 일부 동사에서는 동작의 완료를 나타냄",
+    meg: "동작의 완료나 결과를 나타낼 수 있음",
+    be: "밖에서 안으로 들어가는 방향",
+    vissza: "이전 위치나 상태로 되돌아가는 방향",
+    fel: "위쪽 방향. 일부 동사에서는 동작의 시작이나 완료를 나타냄",
+    le: "아래쪽 방향. 일부 동사에서는 동작의 완료를 나타냄"
+  };
+  const prefixedVerbs = {
+    kimos: ["ki", "mos"], elköltözik: ["el", "költözik"],
+    megmos: ["meg", "mos"], beköltözik: ["be", "költözik"],
+    visszaköltözik: ["vissza", "költözik"], elolvas: ["el", "olvas"],
+    felolvas: ["fel", "olvas"], leír: ["le", "ír"], megír: ["meg", "ír"]
+  };
+  const derivedStems = {
+    rejtvény: ["rejt", "vény", "숨기다", "동사에서 명사를 만듦"],
+    mosás: ["mos", "ás", "씻다", "동작을 나타내는 명사를 만듦"],
+    olvasás: ["olvas", "ás", "읽다", "동작을 나타내는 명사를 만듦"],
+    írás: ["ír", "ás", "쓰다", "동작이나 그 결과를 나타내는 명사를 만듦"],
+    mosogat: ["mos", "ogat", "씻다", "반복하거나 이어서 하는 동작을 나타냄"],
+    szépség: ["szép", "ség", "아름답다", "성질이나 상태를 나타내는 명사를 만듦"],
+    gyorsan: ["gyors", "an", "빠르다", "동작의 방식을 나타내는 부사를 만듦"],
+    természetes: ["természet", "es", "자연", "명사에서 성질을 나타내는 형용사를 만듦"],
+    természetesen: ["természetes", "en", "자연스럽다", "동작의 방식이나 화자의 태도를 나타내는 부사를 만듦"]
+  };
+  const ikStems = new Set(["költözik", "lakik", "dolgozik", "utazik", "játszik", "eszik", "iszik", "alszik", "bízik"]);
+  const markerLabels = {
+    PST: "과거", COND: "조건법", SBJV: "접속·명령법", PL: "복수",
+    PSS1S: "1인칭 단수 소유자", PSS2S: "2인칭 단수 소유자", PSS3S: "3인칭 단수 소유자",
+    PSS1P: "1인칭 복수 소유자", PSS2P: "2인칭 복수 소유자", PSS3P: "3인칭 복수 소유자"
+  };
+  function morphology(word) {
+    const form = word.word.toLowerCase();
+    const tags = word.tags || [];
+    const compound = Object.hasOwn(prefixedVerbs, word.lemma) && prefixedVerbs[word.lemma];
+    const [prefix, base] = compound || ["", word.lemma.toLowerCase()];
+    const body = prefix && form.startsWith(prefix) ? form.slice(prefix.length) : form;
+    const stem = ikStems.has(base) ? base.slice(0, -2) : base;
+    const parts = [];
+    const part = (kind, text, reading) => parts.push({kind, text, reading});
+    const root = (name, displayed) => {
+      const derived = Object.hasOwn(derivedStems, name) && derivedStems[name];
+      if (!derived) {
+        const meaning = (readingsFor(name, posName[tags[0]]===word.pos ? tags[0] : undefined) || [lex[name]?.meaning]).filter(Boolean).join(" / ");
+        part("어근", displayed, [name === displayed ? "" : "기본형 " + name, meaning].filter(Boolean).join(" · "));
+      } else {
+        const [parent, suffix, meaning, role] = derived;
+        if (Object.hasOwn(derivedStems, parent)) root(parent, parent);
+        else part("어근", parent, meaning);
+        part("파생접사", "-" + suffix, role);
+      }
+    };
+    if (prefix && form.startsWith(prefix)) {
+      const explanation = word.lemma === "elköltözik" ? "기준점에서 멀어짐. 이 단어에서는 기존 거주지를 떠남" : preverbs[prefix];
+      part("전철", prefix + "-", explanation + " · 기본 동사 " + base);
+    }
+    const pos = tags[0];
+    if ((!pos && word.pos === "미확인") || !body.startsWith(stem) && !body.startsWith(stem.replace(/[ae]$/u, c => c === "a" ? "á" : "é"))) {
+      part("미분리", body, "어간 교체 또는 결합 경계를 확인하지 못함 · 기본형 " + base);
+      return parts;
+    }
+    const displayedStem = body.slice(0, stem.length);
+    if (displayedStem !== stem && Object.hasOwn(derivedStems, base)) {
+      part("미분리", body, "파생형의 표면 경계를 확인하지 못함 · 기본형 " + base);
+      return parts;
+    }
+    root(base, displayedStem);
+    let tail = body.slice(stem.length);
+    if (!tail) {
+      if (pos === "V" && tags.includes("PRS") && tags.includes("3") && tags.includes("SG") && tags.includes("INDF")) {
+        part("어미소", "∅", "현재 직설법 3인칭 단수 비한정 · 표면에 어미 없음");
+      }
+      return parts;
+    }
+    if (pos === "V") {
+      const verbEnding = tags.filter(tag => /^(?:[123]|SG|PL|DEF|INDF|LGSPEC3)$/u.test(tag)).map(tag => labels[tag]).join(" · ");
+      if (tags.includes("NFIN") && tail === "ni") part("파생접사", "-ni", "부정사를 만듦");
+      else if (tags.includes("V.MSDR") && /^(?:ás|és)$/u.test(tail)) part("파생접사", "-" + tail, "동작 명사를 만듦");
+      else if (tail === "ik" && ikStems.has(base) && tags.includes("PRS") && tags.includes("3") && tags.includes("SG")) {
+        part("어미소", "-ik", "현재 직설법 3인칭 단수 비한정 · -ik 동사의 기본형");
+      } else if (tags.includes("IND") || tags.includes("COND") || tags.includes("SBJV")) {
+        const markers = [["PST", /^(?:ott|ett|ött|tt|t)/u], ["COND", /^(?:ná|né|na|ne|n)/u], ["SBJV", /^j/u]];
+        const marker = markers.find(([tag]) => tags.includes(tag));
+        if (marker) {
+          const value = tail.match(marker[1])?.[0];
+          if (!value) {
+            part("미분리", "-" + tail, "시제·법 표지와 인칭 어미의 경계를 확인하지 못함");
+            return parts;
+          }
+          part("기호소", "-" + value, markerLabels[marker[0]]);
+          tail = tail.slice(value.length);
+        }
+        if (tail || marker) part("어미소", tail ? "-" + tail : "∅", verbEnding);
+      } else part("미분리", "-" + tail, "비정형 접사의 경계를 확인하지 못함");
+    } else if (pos === "N") {
+      let caseEnding = Object.keys(cases).sort((a,b) => b.length-a.length).find(ending => tail.endsWith(ending) && tags.includes(cases[ending]));
+      let caseTag = caseEnding && cases[caseEnding];
+      if (tags.includes("INS")) {
+        const prior = body.slice(0, -3);
+        const instrumental = tail.match(/(?:val|vel)$/u)?.[0] ||
+          (prior && prior.endsWith(body.at(-3)) ? tail.match(/.[ae]l$/u)?.[0] : "");
+        if (instrumental) { caseEnding = instrumental; caseTag = "INS"; }
+      }
+      if (caseEnding) tail = tail.slice(0,-caseEnding.length);
+      const owner = tags.find(tag => /^PSS[123][SP]$/u.test(tag));
+      const ownerEndings = {
+        PSS1S:/^(?:[aoeö]?m)$/u, PSS2S:/^(?:[aoeö]?d)$/u, PSS3S:/^(?:j?[aeáé])$/u,
+        PSS1P:/^(?:[auü]?nk)$/u, PSS2P:/^(?:[aoeö]?t[oeö]k)$/u, PSS3P:/^(?:j?[uü]k)$/u
+      };
+      if (owner && !tags.includes("PL") && ownerEndings[owner].test(tail)) {
+        part("기호소", "-" + tail, markerLabels[owner]);
+        tail = "";
+      } else if (tail && tags.includes("PL") && !owner && /^(?:[aeoö]?k)$/u.test(tail)) {
+        part("기호소", "-" + tail, "복수 · 연결 모음이 있으면 함께 표시");
+        tail = "";
+      }
+      if (tail) part("미분리", "-" + tail, "명사 접사의 경계를 확인하지 못함");
+      if (caseEnding) part("어미소", "-" + caseEnding, labels[caseTag]);
+    } else part("미분리", "-" + tail, "표면형의 접사 경계를 확인하지 못함");
+    return parts;
+  }
   const particles={ACC:"을/를",DAT:"에게",INS:"와/과 함께",PRP:"을/를 위해",TRANS:"(으)로",TERM:"까지",FRML:"(으)로서","IN+ESS":" 안에서","ON+ESS":" 위에서","AT+ESS":" 곁에서","IN+ALL":" 안으로","ON+ALL":" 위로","AT+ALL":" 쪽으로","IN+ABL":" 안에서부터","ON+ABL":" 위에서부터","AT+ABL":" 곁에서부터"};
   function koreanParticle(value,suffix){
     const last=value.charCodeAt(value.length-1);
@@ -264,7 +398,29 @@
     return value+koreanParticle(value,particles[tags.find(t=>particles[t])]||"");
   }
   const sizeSense="꽤, 제법 (정도 강조 · szép nagy = 꽤 큰)";
-  const senseFamilies={
+  const senseFamilies=Object.assign(Object.create(null),{
+    kimos:["(옷 등을) 빨다, 깨끗이 씻다","(때·얼룩을) 씻어 빼다","(용기 안을) 씻어 내다"],
+    mos:["(물로) 씻다","(옷을) 빨다"],
+    elköltözik:["(살던 곳을 떠나) 이사 가다"],
+    költözik:["(거주지를 바꾸어) 이사하다","(다른 장소로) 거처를 옮기다"],
+    megmos:["(몸·과일 등을) 씻다"], beköltözik:["(집·방에) 이사 들어오다"],
+    visszaköltözik:["(전에 살던 곳으로) 다시 이사하다"],
+    elolvas:["(글을) 읽다, 끝까지 읽다"], felolvas:["(글을) 소리 내어 읽다"],
+    leír:["(말이나 생각을) 적다","(모습·상황을) 묘사하다","(자산 등을) 장부에서 상각하다"],
+    megír:["(글·편지 등을) 쓰다, 써 마치다"],
+    mosás:["씻기","빨래, 세탁"], olvasás:["읽기","독서"], írás:["쓰기","글, 문서","문자, 필적"],
+    mosogat:["설거지하다"], szépség:["아름다움","미인"],
+    fa:["나무 (식물)","나무, 목재 (재료)"], fej:["머리","(조직의) 우두머리","(우유를) 짜다"],
+    fejt:["(퍼즐·암호를) 풀다","(광물을) 채굴하다","(실밥·뜨개질을) 뜯어 풀다"],
+    száj:["입","(병·동굴 등의) 입구"], szem:["눈","(곡식·과일 등의) 낱알"],
+    kulcs:["열쇠","(문제 해결의) 열쇠","(음악) 음자리표"],
+    kor:["나이","시대"], lap:["낱장","(책의) 쪽","신문, 잡지"],
+    kar:["팔","(대학의) 학부","합창단"], óra:["시계","시간 (60분)","수업"],
+    jár:["걸어 다니다","정기적으로 다니다","(시계·기계가) 작동하다","(급여·권리 등이) 주어지다"],
+    áll:["서 있다","(움직이다가) 멈춰 있다","(~로) 이루어져 있다"],
+    ér:["(장소·수준에) 닿다, 도달하다","값이 나가다, 가치가 있다","혈관"],
+    tart:["쥐다, 붙들다","(회의·수업을) 열다, 진행하다","(시간이) 지속되다","(~을 ~라고) 여기다"],
+
     szép:["아름답다, 예쁘다","상당한, 제법 많은",sizeSense],
     valójában:["실제로","사실은"], igazából:["실은, 사실은","실제로"],
     tulajdonképpen:["사실은","엄밀히 말하면, 본질적으로"],
@@ -273,7 +429,7 @@
     él:["살다, 살아 있다","거주하다","날, 모서리"],lakik:["거주하다"],
     nap:["해, 태양","날, 하루"],levél:["편지","나뭇잎"],nyelv:["언어","혀"],
     keres:["찾다","돈을 벌다"],tud:["알다","~할 줄 알다, ~할 수 있다"],vesz:["사다","취하다, 받다","(숨을) 쉬다"]
-  };
+  });
   const senseVehicles=new Set(["autó","busz","teherautó","gépkocsi","jármű"]);
   const senseGroups=new Set(["csapat","cég","csoport","vállalat","ember","diák","gyerek","gyermek","valaki"]);
   const senseWeight=new Set(["táska","bőrönd","csomag","kő","doboz"]);
@@ -289,6 +445,11 @@
     const adjacent=Boolean(current && next && /^\s+$/u.test(text.slice(current.index+current[0].length,next.index)));
     return {words:words.slice(start,end),index:index-start,adjacent};
   }
+  function readingsFor(lemma,part){
+    const family=senseFamilies[lemma];
+    if(lemma!=="fej")return family;
+    return part==="V"?family.slice(2):part==="N"?family.slice(0,2):family;
+  }
   function senseTags(word){return word.tags||[];}
   function senseHas(word,tag){return senseTags(word).includes(tag);}
   function senseNominal(word){return word.pos==="명사"||word.pos==="대명사";}
@@ -302,9 +463,59 @@
     if(new Set(word.analyses.map(row=>row.tags[0])).size>1)word.features.push("다른 품사 분석도 가능 · 문장 성분에 따라 선택");
     return true;
   }
+  const subjects = {
+    én:["1","SG"], te:["2","SG"], ő:["3","SG"], mi:["1","PL"], ti:["2","PL"], ők:["3","PL"]
+  };
+  const verbObjects = {
+    fejt:new Set(["rejtvény","keresztrejtvény","kód","szén","érc","varrás","kötés"]),
+    fej:new Set(["tej","tehén","kecske","juh"])
+  };
+  function resolveReadings(words,text){
+    for(let index=0;index<words.length;index++){
+      const word=words[index];
+      if(!word.analyses || word.analyses.length<2)continue;
+      const context=senseClause(words,text,index),clause=context.words,at=context.index;
+      const finite=word.analyses.filter(row=>row.tags[0]==="V" && row.tags.some(tag=>["IND","COND","SBJV"].includes(tag)));
+      // If parts of speech compete, existing part-of-speech rules make that decision.
+      if(finite.length<2 || word.analyses.some(row=>["N","ADJ"].includes(row.tags[0])))continue;
+      let candidates=finite,evidence=[];
+      const restrict=(predicate,reason)=>{
+        const matches=candidates.filter(predicate);
+        if(matches.length && matches.length<candidates.length){candidates=matches;evidence.push(reason);}
+      };
+      const explicit=clause.filter((candidate,i)=>i!==at && candidate.word.toLowerCase()===candidate.lemma && Object.hasOwn(subjects,candidate.lemma));
+      if(explicit.length===1 && clause.filter(candidate=>candidate.pos==="동사").length===1){
+        const [person,number]=subjects[explicit[0].lemma];
+        restrict(row=>row.tags.includes(person)&&row.tags.includes(number),explicit[0].word+"의 인칭·수");
+      }
+      const nearby=clause.slice(Math.max(0,at-2),at+3);
+      const objects=nearby.filter(candidate=>senseHas(candidate,"ACC"));
+      if(objects.length===1){
+        const object=objects[0];
+        const article=clause[clause.indexOf(object)-1]?.word.toLowerCase();
+        if(["a","az","egy"].includes(article)){
+          const conjugation=article==="egy"?"INDF":"DEF";
+          restrict(row=>row.tags.includes(conjugation),article+"가 붙은 목적어의 한정성");
+        }
+        const compatible=candidates.filter(row=>Object.hasOwn(verbObjects,row.lemma)&&verbObjects[row.lemma].has(object.lemma));
+        if(new Set(compatible.map(row=>row.lemma)).size===1){
+          restrict(row=>row.lemma===compatible[0].lemma,object.word+"의 뜻");
+        }
+      }
+      if(candidates.length!==1 || !evidence.length)continue;
+      const reading=candidates[0];
+      if(word.lemma!==reading.lemma)word.meaning=lex[reading.lemma]?.meaning||"";
+      word.lemma=reading.lemma;
+      word.tags=reading.tags;
+      word.pos=posName[reading.tags[0]];
+      word.parts=segment(word.word.toLowerCase(),reading.lemma);
+      word.features=reading.tags.slice(1).map(tag=>labels[tag]||tag);
+      word.readingReason=evidence.join(" 및 ")+"에 맞는 활용을 선택했습니다.";
+    }
+  }
   function contextualSenses(words,text,preserveAbbreviations){
     for(let index=0;index<words.length;index++){
-      const word=words[index],family=senseFamilies[word.lemma];
+      const word=words[index],family=readingsFor(word.lemma,word.tags?.[0]);
       if(!family || (word.lemma==="szép" && word.word.toLowerCase()!=="szép"))continue;
       const context=senseClause(words,text,index),clause=context.words,at=context.index;
       const previous=clause[at-1],next=clause[at+1];
@@ -314,10 +525,12 @@
         nap:[["süt","ragyog"],["minden","eltelik","múlik"]],
         levél:[["ír","küld","postáz","olvas"],["lehull","hervad"]],
         nyelv:[["beszél","tanul","tanít"],["kinyújt","harap"]],
-        keres:[[],["pénz"]],vesz:[["kenyér","jegy"],[],["levegő"]],tud:[[],[]]
+        keres:[[],["pénz"]],vesz:[["kenyér","jegy"],[],["levegő"]],tud:[[],[]],
+        kimos:[["ruha","ing","nadrág","törölköző"],["folt"],["üveg","palack","edény"]],
+        fejt:[["rejtvény","keresztrejtvény","találós kérdés","kód"],["szén","érc"],["varrás","kötés"]]
       };
       if(Object.hasOwn(cueGroups,word.lemma)){
-        const nearby=["vesz","keres"].includes(word.lemma)?objectWords:clause.filter(candidate=>candidate!==word&&candidate.pos!=="관사"&&Math.abs(clause.indexOf(candidate)-at)<=2);
+        const nearby=["vesz","keres","kimos","fejt"].includes(word.lemma)?objectWords:clause.filter(candidate=>candidate!==word&&candidate.pos!=="관사"&&Math.abs(clause.indexOf(candidate)-at)<=2);
         const hits=cueGroups[word.lemma].flatMap((lemmas,i)=>{
           const cue=nearby.find(candidate=>lemmas.includes(candidate.lemma)||lemmas.includes(candidate.word.toLowerCase()));
           return cue?[{i,cue}]:[];
@@ -396,6 +609,78 @@
       }
     }
   }
+  async function fillDictionaryMeanings(words,offline){
+    const dictionary=window.hungarianDictionary;
+    const missing=new Map();
+    for(const word of words){
+      if(word.meaning||senseFamilies[word.lemma])continue;
+      const key=word.lemma+"|"+word.pos;
+      if(!missing.has(key))missing.set(key,[]);
+      missing.get(key).push(word);
+    }
+    const groups=[...missing.values()];
+    for(let i=0;i<groups.length;i+=4){
+      await Promise.all(groups.slice(i,i+4).map(async (group,offset)=>{
+        const {lemma,pos,definition}=group[0];
+        const verified=dictionary?.verifiedEntry(lemma,pos);
+        if(verified){
+          for(const word of group){
+            if(word.pos==="미확인")word.pos=verified.pos;
+            word.dictionarySenses=verified.meanings;
+            word.dictionarySummary=verified.meanings.map(korean=>({pos:verified.pos,korean}));
+            word.dictionarySources=verified.sources;
+            word.meaning=verified.meanings.join(" / ");
+          }
+          return;
+        }
+        const [native,english]=!offline && i+offset<16 && dictionary
+          ?await Promise.all([dictionary.lookupHungarian(lemma),dictionary.lookup(lemma)]):[[],[]];
+        const compatible=entry=>pos==="미확인"||entry.pos===pos;
+        const nativeMatches=native.filter(compatible);
+        const nativeParts=new Set(nativeMatches.map(entry=>entry.pos));
+        const matches=[
+          ...nativeMatches.map(entry=>({...entry,language:"hu"})),
+          ...english.filter(entry=>compatible(entry)&&!nativeParts.has(entry.pos)).map(entry=>({...entry,language:"en"}))
+        ];
+        const definitions=new Map();
+        for(const entry of matches){
+          for(const original of entry.definitions){
+            const key=entry.pos+"|"+original;
+            if(!definitions.has(key))definitions.set(key,{pos:entry.pos,original,language:entry.language});
+          }
+        }
+        if(definitions.size){
+          const selected=[...definitions.values()].slice(0,8);
+          const summary=await Promise.all(selected.slice(0,4).map(async entry=>{
+            const reviewed=entry.language==="hu" && dictionary.reviewedMeaning(entry.original);
+            const result=reviewed||await translate(entry.original,entry.language+"|ko");
+            return {...entry,korean:/[가-힣]/u.test(result)?result:""};
+          }));
+          const meanings=[...new Set(summary.map(entry=>entry.korean).filter(Boolean))];
+          const classes=[...new Set(matches.map(entry=>entry.pos))];
+          const sources=[];
+          if(selected.some(entry=>entry.language==="hu"))sources.push({
+            name:"헝가리어판 위키낱말사전",url:"https://hu.wiktionary.org/wiki/"+encodeURIComponent(lemma)
+          });
+          if(selected.some(entry=>entry.language==="en"))sources.push(
+            dictionary.searchLinks(lemma).find(link=>link.name==="Wiktionary"),
+            {name:"Free Dictionary API",url:"https://freedictionaryapi.com/"});
+          sources.push({name:"CC BY-SA 4.0",url:"https://creativecommons.org/licenses/by-sa/4.0/"});
+          for(const word of group){
+            if(word.pos==="미확인" && classes.length===1)word.pos=classes[0];
+            word.dictionarySenses=meanings;
+            word.dictionarySummary=summary;
+            word.dictionaryDefinitions=selected.map(entry=>entry.pos+" · "+entry.original);
+            word.dictionarySources=sources;
+            word.meaning=meanings.join(" / ")||"사전 원문 · "+selected[0].original;
+          }
+          return;
+        }
+        const meaning=offline?"":definition?await translate(definition,"en|ko"):await translate(lemma);
+        for(const word of group)word.meaning=meaning||(definition?"영어 사전 풀이 · "+definition:"뜻 미확인");
+      }));
+    }
+  }
   window.analyzeHU = async (input, { preserveAbbreviations = false, offline = false } = {}) => {
     const text=input.normalize("NFC").trim();
     const tokenPattern=(/[\p{L}\p{M}\p{N}]+(?:[-’'][\p{L}\p{M}\p{N}]+)*/gu);
@@ -403,6 +688,7 @@
     if (!tokens.length) throw Error("분석할 헝가리어 단어나 문장을 입력해 주세요.");
     const example=examples.get(text.toLowerCase().replace(/[.!?]+$/,""));
     const words=await Promise.all(tokens.map(parse));
+    resolveReadings(words,text);
     if (preserveAbbreviations) {
       for (const word of words) if (word.expanded) word.gloss = word.word;
     }
@@ -416,15 +702,29 @@
     let position=0;
     const expandedText=text.replace(tokenPattern, token=>words[position++].expanded || token);
     const naturalJob=example?Promise.resolve(example.natural):(sentence||idiomTranslation(text))?naturalHungarian(preserveAbbreviations ? text : expandedText,offline):Promise.resolve("");
-    const missing=[...new Set(words.filter(w=>!w.meaning&&!senseFamilies[w.lemma]).map(w=>w.lemma))];
-    for(let i=0;i<missing.length;i+=4){
-      await Promise.all(missing.slice(i,i+4).map(async lemma=>{
-        const definition=words.find(w=>w.lemma===lemma)?.definition;
-        const meaning=offline?"":definition?await translate(definition,'en|ko'):await translate(lemma);
-        for(const w of words)if(w.lemma===lemma)w.meaning=meaning||(definition?"영어 사전 풀이 · "+definition:"뜻 미확인");
-      }));
-    }
+    await fillDictionaryMeanings(words,offline);
     contextualSenses(words,text,preserveAbbreviations);
+    for(const word of words){
+      word.morphemes=morphology(word);
+      word.features=word.features.filter(feature=>!feature.startsWith("다른 분석: "));
+      word.readingAlternatives=(word.analyses||[])
+        .filter(row=>row.lemma!==word.lemma || row.tags.join(";")!==word.tags.join(";"))
+        .map(row=>{
+          const part=row.tags[0], pos=posName[part];
+          const meanings=readingsFor(row.lemma,part) || (lex[row.lemma]?.pos===pos?[lex[row.lemma].meaning]:[]);
+          return {lemma:row.lemma,pos,features:row.tags.slice(1).map(tag=>labels[tag]||tag),
+            morphemes:morphology({...word,lemma:row.lemma,pos,tags:row.tags}),meanings};
+        });
+      word.readingUncertain=!(word.readingReason||word.senseReason) && word.readingAlternatives.some(reading=>reading.lemma!==word.lemma || reading.pos!==word.pos);
+      const family=readingsFor(word.lemma,word.tags?.[0]);
+      const localMeanings=lex[word.lemma]?.meaning?.split(/,\s+/u) || [];
+      word.senses=[...new Set(family || (word.dictionarySenses?.length ? word.dictionarySenses : localMeanings.length ? localMeanings : [word.meaning]))]
+        .filter(meaning=>meaning && meaning!=="뜻 미확인");
+      if(!family && word.senses.length>1){
+        word.unresolvedSenses=[...word.senses];
+        word.otherMeanings=word.senses.filter(meaning=>meaning!==word.meaning);
+      }
+    }
     const preference=preferenceTranslation(text,words);
     if(preference){
       for(const word of words){
@@ -442,7 +742,7 @@
     }
     for(const w of words) if(w.degree && !w.gloss) w.gloss=(w.degree===1?"더 ":"가장 ")+w.meaning;
     const vocabularyMeanings=tokens.length===1?vocabularyMeaningsFor(words[0]):[];
-    return {vocabularyMeanings,grammarNotes:preference ? preferenceNotes(words) : "",literal:example?.literal||words.map(gloss).join(" / "),natural:(await naturalJob)||(!sentence?gloss(words[0]):offline?"":"현재 의역을 불러올 수 없습니다."),words};
+    return {vocabularyMeanings,verifiedTranslation:example?.verified?example.natural:"",grammarNotes:preference ? preferenceNotes(words) : "",literal:example?.literal||words.map(gloss).join(" / "),natural:(await naturalJob)||(!sentence?gloss(words[0]):offline?"":"현재 의역을 불러올 수 없습니다."),words};
   };
   const idioms=new Map(Object.entries({
     "süt a nap":"해가 난다","ragyog a nap":"햇살이 눈부시다",
@@ -568,9 +868,10 @@
     for(const term of group)koreanSynonyms.set(term,group);
   }
   function vocabularyMeaningsFor(word){
-    const direct=dictionaryMeanings(word.lemma).flatMap(meaningTerms);
+    const direct=[...dictionaryMeanings(word.lemma).flatMap(meaningTerms),...(word.dictionarySenses||[])];
     const related=direct.flatMap(term=>koreanSynonyms.get(koreanKey(term))||[]);
-    return [...new Set([...direct,...related])];
+    const alternatives=word.readingUncertain?word.readingAlternatives.flatMap(reading=>reading.meanings):[];
+    return [...new Set([...direct,...related,...alternatives])];
   }
   window.translateKorean = async text => {
     const key=koreanKey(text);

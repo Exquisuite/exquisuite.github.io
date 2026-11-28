@@ -1,5 +1,5 @@
-const cacheName = "eohyeong-iphone-12e9598b2e4aa561";
-const shell = ["app.js","assignment.js","engine.js","index.html","local-context-worker.js","local-context.js","music-player.css","music-player.js","paradigms.json","photo-key.js","photo-match.js","photo.js","reference.js","report.js","study.js","style.css","typing-viewport.js","workspace.css","brand/maplestory-bold.ttf","brand/pretendard-license.txt","brand/pretendard-thin.woff2","brand/workspace-forest.png","brand/yomi.png","iphone.webmanifest","iphone-install.js","iphone-icon-180.png","iphone-icon-192.png","iphone-icon-512.png","iphone-music-yomi.gif"];
+const cacheName = "eohyeong-iphone-0f890410bbb81ea2";
+const shell = ["ai-handoff.js","app.js","assignment.js","dictionary.js","engine.js","index.html","local-context-worker.js","local-context.js","music-player.css","music-player.js","paradigms.json","photo-key-text.js","photo-key.js","photo-match.js","photo.js","reference.js","report.js","spelling.js","study.js","style.css","typing-viewport.js","workspace.css","brand/maplestory-bold.ttf","brand/pretendard-license.txt","brand/pretendard-semibold.woff2","brand/pretendard-thin.woff2","brand/workspace-forest.png","brand/yomi-lavender.gif","brand/yomi.png","iphone.webmanifest","iphone-install.js","iphone-icon-180.png","iphone-icon-192.png","iphone-icon-512.png"];
 const scope = new URL(self.registration.scope);
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(cacheName).then(cache => cache.addAll(shell)));

@@ -59,6 +59,10 @@ function studyWord(number,word,book,entry) {
     if(word.features?.length && !word.features.includes('형태 미확인'))fields.push(['문법',word.features.join(' · ')]);
     if(word.gloss)fields.push(['문장 속 풀이',word.gloss]);
   }
+  if(word?.dictionarySummary?.length>1){
+    const meanings=[...new Set(word.dictionarySummary.map(({korean,original})=>korean||"사전 원문 · "+original))];
+    fields.push(['사전 뜻 후보',meanings.join("\n")]);
+  }else if(word?.senses?.length>1)fields.push(['사전 뜻 후보',word.senses.join(' / ')]);
   return [number+'. '+(entry?.title||lemma)+' ['+pos+']','의미: '+(entry?.meaning||word.meaning),
     ...fields.map(([key,value])=>key+(key==='※'?' ':': ')+value)].join('\n');
 }
