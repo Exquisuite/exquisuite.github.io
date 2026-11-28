@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const examples=[['Tegnap egy könyvet olvastam a kertben.','과거형과 장소 표현'],['A házamban vagyok.','소유 표현과 장소격'],['Látom a kutyát.','목적격과 정활용']];
+const examples=[['Tegnap egy könyvet olvastam a kertben.','과거형과 장소 표현'],['A házamban vagyok.','소유 표현과 장소격'],['Látom a kutyát.','목적격과 정활용'],['Rejtvényt fejtek.','비한정 활용과 1인칭 단수']];
 let historyList=[];try{historyList=JSON.parse(localStorage.getItem('magyar.history')||'[]')}catch{}
 let generation=0,activeRun=null;
 function el(tag,cls,value){const n=document.createElement(tag);n.className=cls||'';n.textContent=value??'';return n}
@@ -16,7 +16,7 @@ for(const [t,sub,lang] of items){let b=el('button','item',t);b.append(el('small'
 async function run(save=true){const text=$('input').value.trim(),lang=document.getElementById('direction').value;if(activeRun&&activeRun.text===text&&activeRun.lang===lang)return;const id=++generation;if(!text){activeRun=null;$('run').disabled=false;$('status').textContent='원문을 입력해 주세요.';$('results').hidden=true;return}activeRun={id,text,lang};
 $('run').disabled=true;$('status').textContent='어휘와 어형을 분석하고 있습니다…';$('results').hidden=true;$('localPanel').hidden=true;
 try{const reverse=lang==='ko';const r=reverse?{natural:await window.translateKorean(text),literal:'',words:[]}:await window.analyzeHU(text);if(id!==generation)return;if(reverse&&!r.natural)throw Error();$('literal').textContent=r.literal;const meanings=r.vocabularyMeanings;const showMeanings=meanings?.length>1;$('naturalLabel').textContent=reverse?'헝가리어 번역':showMeanings?'한국어 뜻':'의역';$('natural').textContent=showMeanings?meanings.join('\n'):r.natural;$('words').replaceChildren();$('total').textContent=r.words.length;
-r.words.forEach((word,index)=>$('words').append(wordCard(word,index)));$('results').hidden=false;$('status').textContent='';if(!reverse)setupLocalContext(text,r.words,id,r.grammarNotes);if(save){historyList=[{text,lang},...historyList.filter(x=>typeof x==='string'?x!==text:x.text!==text||x.lang!==lang)].slice(0,25);try{localStorage.setItem('magyar.history',JSON.stringify(historyList))}catch{}}}
+r.words.forEach((word,index)=>$('words').append(wordCard(word,index)));$('results').hidden=false;$('status').textContent='';if(!reverse)setupLocalContext(text,r.words,id,r.grammarNotes,r.verifiedTranslation);if(save){historyList=[{text,lang},...historyList.filter(x=>typeof x==='string'?x!==text:x.text!==text||x.lang!==lang)].slice(0,25);try{localStorage.setItem('magyar.history',JSON.stringify(historyList))}catch{}}}
 catch{if(id===generation)$('status').textContent='분석을 완료하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.'}finally{if(id===generation){activeRun=null;$('run').disabled=false}}}
 function wordCard(word,index){
   const card=el('article','word'),top=el('div','wordtop');
@@ -57,12 +57,29 @@ function wordCard(word,index){
   }
   for(const line of [...(word.features||[]),...Object.entries(word.fields||{}).map(([key,value])=>key+' · '+value),
     word.gloss && word.gloss!==word.meaning?'문장 속 풀이 · '+word.gloss:'',
+    word.readingReason?'활용 선택 · '+word.readingReason:'',
     word.senseReason?'문맥 · '+word.senseReason:''].filter(Boolean))details.append(el('div','',line));
+  if(word.readingAlternatives?.length){
+    const variants=el('details','reading-alternatives');
+    variants.append(el('summary','', (word.readingUncertain?'형태 분석 후보 ':'다른 형태 분석 ')+word.readingAlternatives.length+'개'));
+    variants.open=word.readingUncertain;
+    const list=el('ul','word-senses');
+    for(const reading of word.readingAlternatives){
+      const item=el('li','');
+      item.append(el('strong','',reading.lemma+' · '+reading.pos),
+        el('div','',reading.features.join(' · ')),
+        el('div','',reading.morphemes.map(p=>p.kind+' '+p.text).join(' / ')));
+      if(reading.meanings.length)item.append(el('div','',reading.meanings.join(' / ')));
+      list.append(item);
+    }
+    variants.append(list);
+    details.append(variants);
+  }
   card.append(details);
   return card;
 }
 let localBusy=false;
-function setupLocalContext(text,words,id,grammarNotes){
+function setupLocalContext(text,words,id,grammarNotes,verifiedTranslation){
   const panel=$('localPanel'),button=$('localRun');
   if(words.length<2)return;
   panel.hidden=false;
@@ -89,8 +106,10 @@ function setupLocalContext(text,words,id,grammarNotes){
       $('localTranslation').textContent=result.translation;
       $('localExplanation').textContent=result.explanation||'문법 해설을 생성하지 못했습니다. 아래 어휘 분석을 참고해 주세요.';
       $('localExplanation').previousElementSibling.textContent=grammarNotes?'문장 구조와 핵심 문법 · 어형 규칙':'문장 구조와 핵심 문법 · AI 추정';
-      $('natural').textContent=result.translation;
-      $('naturalLabel').textContent='의역 · 기기 AI';
+      if(!verifiedTranslation){
+        $('natural').textContent=result.translation;
+        $('naturalLabel').textContent='의역 · 기기 AI';
+      }
       result.choices.forEach((choice,i)=>{
         if(choice<0||!candidates[i]||choice>=candidates[i].senses.length)return;
         const {index,senses}=candidates[i];
