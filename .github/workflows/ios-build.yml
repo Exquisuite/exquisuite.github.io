@@ -29,6 +29,16 @@ jobs:
       - name: Compile simulator app
         working-directory: .github/ios
         run: npm run build:simulator
+      - name: Launch on an iPhone simulator
+        working-directory: .github/ios
+        run: |
+          set -eo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c 'import sys,json; devices=json.load(sys.stdin)["devices"]; print(next(d["udid"] for runtime, entries in devices.items() if ".iOS-" in runtime for d in entries if d["name"].startswith("iPhone")))')
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" build/Build/Products/Debug-iphonesimulator/App.app
+          xcrun simctl launch "$device" site.magyarreadinglab.eohyeong
+          sleep 5
+          xcrun simctl spawn "$device" launchctl list | grep -F 'UIKitApplication:site.magyarreadinglab.eohyeong'
       - name: Package simulator app
         working-directory: .github/ios
         run: ditto -c -k --keepParent build/Build/Products/Debug-iphonesimulator/App.app Eohyeong-iOS-Simulator.zip
